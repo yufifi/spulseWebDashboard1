@@ -30,18 +30,25 @@ export default function Dashboard() {
   const [pavilionPie, setPavilionPie] = useState<any[]>([]);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
+  // Filtros (apenas para o gráfico de visitantes)
+  const [selectedDateRange, setSelectedDateRange] = useState("7");
+
   useEffect(() => {
-    load();
+    loadInitial();
   }, []);
 
-  async function load() {
+  useEffect(() => {
+    loadVisitorsData();
+  }, [selectedDateRange]);
+
+  async function loadInitial() {
     setLoading(true);
     const email = localStorage.getItem("currentUser");
     setUserEmail(email);
 
     const [visitorStats, visitors7, pavilionStats, userPav, isAdmin, recentCp] = await Promise.all([
       fetchVisitorsStats(),
-      fetchVisitorsLast7Days(),
+      fetchVisitorsLast7Days(selectedDateRange),
       fetchCheckpointsByPavilion(),
       fetchUserPavilion(email),
       checkIfUserIsAdmin(email),
@@ -68,6 +75,21 @@ export default function Dashboard() {
     setLoading(false);
   }
 
+  async function loadVisitorsData() {
+    const visitorsData = await fetchVisitorsLast7Days(selectedDateRange);
+    const series = visitorsData.dates?.map((d: string, i: number) => ({ date: d, value: visitorsData.counts[i] })) || [];
+    setVisitorsSeries(series);
+  }
+
+  const getChartTitle = () => {
+    switch (selectedDateRange) {
+      case "7": return "Visitantes - Últimos 7 dias";
+      case "30": return "Visitantes - Últimos 30 dias";
+      case "90": return "Visitantes - Últimos 90 dias";
+      default: return "Visitantes";
+    }
+  };
+
   if (loading) return <div className="container">Carregando...</div>;
 
   return (
@@ -81,7 +103,7 @@ export default function Dashboard() {
           {stats.currentPavilion && (
             <div className="card">Pavilhão atual: {stats.currentPavilion}</div>
           )}
-          <button className="button" onClick={load}>Refresh</button>
+          <button className="button" onClick={loadInitial}>Refresh</button>
         </div>
       </header>
 
@@ -92,8 +114,24 @@ export default function Dashboard() {
         <Card title="Status" subtitle={stats.admin ? "Administrador" : "Controlador"} value={stats.admin ? "Administrador" : "Controlador"} />
       </main>
 
+      {/* Filtros (apenas para visitantes) */}
+      <section className="filters" style={{ marginBottom: "16px", display: "flex", gap: "12px", alignItems: "center" }}>
+        <div>
+          <label style={{ display: "block", fontWeight: "bold", marginBottom: "4px" }}>Período</label>
+          <select
+            value={selectedDateRange}
+            onChange={(e) => setSelectedDateRange(e.target.value)}
+            style={{ padding: "6px 8px", borderRadius: "8px", border: "1px solid #ccc" }}
+          >
+            <option value="7">Últimos 7 dias</option>
+            <option value="30">Últimos 30 dias</option>
+            <option value="90">Últimos 90 dias</option>
+          </select>
+        </div>
+      </section>
+
       <section className="grid grid-2" style={{ marginBottom: "24px" }}>
-        <ChartContainer title="Visitantes últimos 7 dias">
+        <ChartContainer title={getChartTitle()}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={visitorsSeries}>
               <XAxis dataKey="date" />
@@ -104,7 +142,7 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </ChartContainer>
 
-        <ChartContainer title="Checkpoints por Pavilhão (7 dias)">
+        <ChartContainer title="Checkpoints por Pavilhão">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie dataKey="value" data={pavilionPie} nameKey="name" outerRadius={80} label>
