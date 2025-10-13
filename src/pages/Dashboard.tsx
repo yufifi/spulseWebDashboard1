@@ -113,7 +113,17 @@ export default function Dashboard() {
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>
-              <Legend />
+              <Legend
+                verticalAlign="bottom"
+                align="center"
+                wrapperStyle={{
+                  paddingTop: 20,
+                  maxWidth: "95%",
+                  whiteSpace: "normal",
+                  wordWrap: "break-word",
+                  lineHeight: "1.2em",
+                }}
+              />
               <Tooltip />
             </PieChart>
           </ResponsiveContainer>
