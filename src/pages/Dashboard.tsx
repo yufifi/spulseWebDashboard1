@@ -10,7 +10,6 @@ import {
 
 import Card from "../components/Card";
 import ChartContainer from "../components/ChartContainer";
-import QuickActionButton from "../components/QuickActionButton";
 
 import {
   LineChart, Line, XAxis, YAxis, Tooltip,
@@ -118,31 +117,18 @@ export default function Dashboard() {
                 align="center"
                 wrapperStyle={{
                   paddingTop: 20,
-                  maxWidth: "95%",
-                  whiteSpace: "normal",
-                  wordWrap: "break-word",
-                  lineHeight: "1.2em",
+                  position: "relative",
+                  bottom: 0,
+                  overflow: "hidden",
+                  whiteSpace: "nowrap",
+                  textOverflow: "ellipsis",
+                  maxWidth: "90%",
                 }}
               />
               <Tooltip />
             </PieChart>
           </ResponsiveContainer>
         </ChartContainer>
-      </section>
-
-      <section style={{ marginBottom: "24px" }}>
-        <h3 style={{ marginBottom: "12px" }}>Ações Rápidas</h3>
-        <div className="grid grid-2">
-          <QuickActionButton label="Gerenciar Visitantes" subtitle="Ver e editar todos os visitantes" onClick={() => alert("Navegar: Gerenciar Visitantes")} />
-          <QuickActionButton label="Registrar Checkpoints" subtitle="Marcar passagem de visitantes" onClick={() => alert("Navegar: Registrar Checkpoints")} />
-          {stats.currentPavilion?.toString() === "1" && (
-            <QuickActionButton label="Novo Visitante" subtitle="Cadastrar novo visitante" onClick={() => alert("Navegar: Registrar Visitante")} />
-          )}
-          {stats.admin && (
-            <QuickActionButton label="Gerenciar Usuários" subtitle="Cadastrar novos controladores" onClick={() => alert("Navegar: Cadastro")} />
-          )}
-          <QuickActionButton label="Gerenciar NFC" subtitle="Ler e gravar pulseiras NFC" onClick={() => alert("Navegar: NFC")} />
-        </div>
       </section>
 
       <section>
