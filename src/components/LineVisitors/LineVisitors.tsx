@@ -1,6 +1,6 @@
 import React from 'react'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import '../styles/ChartContainer.css'
+import '../../styles/ChartContainer.css'
 
 export default function LineVisitors({ data }: { data: any[] }) {
   return (

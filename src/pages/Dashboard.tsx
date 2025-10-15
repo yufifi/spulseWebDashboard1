@@ -1,202 +1,161 @@
-import React, { useEffect, useState } from "react";
-import {
-  fetchVisitorsStats,
-  fetchVisitorsLast7Days,
-  fetchCheckpointsByPavilion,
-  fetchUserPavilion,
-  checkIfUserIsAdmin,
-  fetchRecentCheckpoints,
-} from "../services/api";
-
-import Card from "../components/Card";
-import ChartContainer from "../components/ChartContainer";
+import React, { useEffect, useState } from 'react'
+import Card from '../components/Card'
+import ChartContainer from '../components/ChartContainer'
+import LineVisitors from '../components/LineVisitors/LineVisitors'
+import PiePavilions from '../components/PiePavilions/PiePavilions'
+import PieGender from '../components/PieGender'
+import BarTopPavilions from '../components/BarTopPavilions'
+import LineAvgStay from '../components/LineAvgStay'
 
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell, Legend
-} from "recharts";
+  fetchVisitorsLastNDays,
+  fetchCheckpointsByPavilionDays,
+  fetchVisitorsByGender,
+  fetchTopPavilions,
+  fetchAvgStayMinutes,
+  // also keep the old small helpers if you use them
+} from '../api/stats'
 
 export default function Dashboard() {
-  const [loading, setLoading] = useState(true);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [stats, setStats] = useState<any>({
-    totalVisitors: 0,
-    todayVisitors: 0,
-    currentPavilion: null,
-    recentCheckpoints: 0,
-    admin: false,
-  });
-  const [visitorsSeries, setVisitorsSeries] = useState<any[]>([]);
-  const [pavilionPie, setPavilionPie] = useState<any[]>([]);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [loading, setLoading] = useState(true)
+  // main stats (kept for top cards)
+  const [totalVisitors, setTotalVisitors] = useState(0)
+  const [todayVisitors, setTodayVisitors] = useState(0)
+  const [recentCheckpoints, setRecentCheckpoints] = useState(0)
 
-  // Filtros (apenas para o gráfico de visitantes)
-  const [selectedDateRange, setSelectedDateRange] = useState("7");
+  // charts data
+  const [visitorsSeries, setVisitorsSeries] = useState<{ date: string; value: number }[]>([])
+  const [pavilionPie, setPavilionPie] = useState<any[]>([])
+  const [genderPie, setGenderPie] = useState<any[]>([])
+  const [topPavilions, setTopPavilions] = useState<any[]>([])
+  const [avgStay, setAvgStay] = useState<{ avgMinutes: number; samples: number }>({ avgMinutes: 0, samples: 0 })
 
-  useEffect(() => {
-    loadInitial();
-  }, []);
+  // filters
+  const [visitorsDaysRange, setVisitorsDaysRange] = useState<number>(7)
+  const [topPavilionDays, setTopPavilionDays] = useState<number>(7)
+  const [avgStayDays, setAvgStayDays] = useState<number>(30)
 
   useEffect(() => {
-    loadVisitorsData();
-  }, [selectedDateRange]);
+    loadAll()
+  }, [])
 
-  async function loadInitial() {
-    setLoading(true);
-    const email = localStorage.getItem("currentUser");
-    setUserEmail(email);
+  useEffect(() => {
+    // when visitorsDaysRange changes, reload only visitors series and gender pie (if you want)
+    loadVisitorsSeries()
+  }, [visitorsDaysRange])
 
-    const [visitorStats, visitors7, pavilionStats, userPav, isAdmin, recentCp] = await Promise.all([
-      fetchVisitorsStats(),
-      fetchVisitorsLast7Days(selectedDateRange),
-      fetchCheckpointsByPavilion(),
-      fetchUserPavilion(email),
-      checkIfUserIsAdmin(email),
-      fetchRecentCheckpoints(),
-    ]);
-
-    setStats({
-      totalVisitors: visitorStats.total,
-      todayVisitors: visitorStats.today,
-      currentPavilion: userPav,
-      recentCheckpoints: recentCp,
-      admin: isAdmin,
-    });
-
-    const series = visitors7.dates?.map((d: string, i: number) => ({ date: d, value: visitors7.counts[i] })) || [];
-    setVisitorsSeries(series);
-
-    setPavilionPie(pavilionStats.map((p: any, idx: number) => ({
-      ...p,
-      color: `hsl(${(idx * 73) % 360} 65% 55%)`
-    })));
-
-    setLastUpdated(new Date());
-    setLoading(false);
+  async function loadAll() {
+    setLoading(true)
+    await Promise.all([
+      loadVisitorsSeries(),
+      loadPavilionPie(),
+      loadGenderPie(),
+      loadTopPavilions(),
+      loadAvgStay(),
+      // optionally load top-level stats
+    ])
+    setLoading(false)
   }
 
-  async function loadVisitorsData() {
-    const visitorsData = await fetchVisitorsLast7Days(selectedDateRange);
-    const series = visitorsData.dates?.map((d: string, i: number) => ({ date: d, value: visitorsData.counts[i] })) || [];
-    setVisitorsSeries(series);
+  async function loadVisitorsSeries() {
+    const { dates, counts } = await fetchVisitorsLastNDays(visitorsDaysRange)
+    const series = dates.map((d, i) => ({ date: d, value: counts[i] ?? 0 }))
+    setVisitorsSeries(series)
   }
 
-  const getChartTitle = () => {
-    switch (selectedDateRange) {
-      case "7": return "Visitantes - Últimos 7 dias";
-      case "30": return "Visitantes - Últimos 30 dias";
-      case "90": return "Visitantes - Últimos 90 dias";
-      default: return "Visitantes";
-    }
-  };
+  async function loadPavilionPie() {
+    const data = await fetchCheckpointsByPavilionDays(7)
+    // transform to {name, value}
+    setPavilionPie(data.map((r: any) => ({ name: r.name, value: r.value, color: r.color || undefined })))
+  }
 
-  if (loading) return <div className="container">Carregando...</div>;
+  async function loadGenderPie() {
+    const data = await fetchVisitorsByGender(visitorsDaysRange)
+    setGenderPie(data)
+  }
+
+  async function loadTopPavilions() {
+    const data = await fetchTopPavilions(topPavilionDays, 5)
+    setTopPavilions(data)
+  }
+
+  async function loadAvgStay() {
+    const res = await fetchAvgStayMinutes(avgStayDays)
+    setAvgStay(res)
+  }
+
+  if (loading) return <div className="container">Carregando...</div>
 
   return (
     <div className="container">
-      <header className="header">
+      <header className="header" style={{ marginBottom: 20 }}>
         <div>
-          <div style={{ fontSize: "20px", fontWeight: "bold" }}>Dashboard do Controlador</div>
-          <div style={{ color: "#666" }}>{userEmail ?? "—"}</div>
+          <div style={{ fontSize: 20, fontWeight: 700 }}>Dashboard do Controlador</div>
         </div>
-        <div style={{ display: "flex", gap: "12px" }}>
-          {stats.currentPavilion && (
-            <div className="card">Pavilhão atual: {stats.currentPavilion}</div>
-          )}
-          <button className="button" onClick={loadInitial}>Refresh</button>
+
+        {/* Filters section (affects only visitors chart) */}
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <label>Período visitantes:</label>
+          <select value={visitorsDaysRange} onChange={(e) => setVisitorsDaysRange(Number(e.target.value))} className="input">
+            <option value={7}>Últimos 7 dias</option>
+            <option value={30}>Últimos 30 dias</option>
+            <option value={90}>Últimos 90 dias</option>
+          </select>
+
+          <label>Top pavilhões (dias):</label>
+          <select value={topPavilionDays} onChange={(e) => { setTopPavilionDays(Number(e.target.value)); loadTopPavilions() }}>
+            <option value={7}>7</option>
+            <option value={30}>30</option>
+            <option value={90}>90</option>
+          </select>
+
+          <label>Avg stay (dias):</label>
+          <select value={avgStayDays} onChange={(e) => { setAvgStayDays(Number(e.target.value)); loadAvgStay() }}>
+            <option value={30}>30</option>
+            <option value={90}>90</option>
+            <option value={180}>180</option>
+          </select>
+
+          <button className="button" onClick={loadAll}>Atualizar tudo</button>
         </div>
       </header>
 
-      <main className="grid grid-3" style={{ marginBottom: "24px" }}>
-        <Card title="Total Visitantes" value={stats.totalVisitors} />
-        <Card title="Visitantes Hoje" value={stats.todayVisitors} />
-        <Card title="Checkpoints Hoje" value={stats.recentCheckpoints} />
-        <Card title="Status" subtitle={stats.admin ? "Administrador" : "Controlador"} value={stats.admin ? "Administrador" : "Controlador"} />
+      {/* top cards */}
+      <main className="grid grid-3" style={{ marginBottom: 20 }}>
+        <Card title="Total Visitantes" value={totalVisitors} />
+        <Card title="Visitantes Hoje" value={todayVisitors} />
+        <Card title="Checkpoints Hoje" value={recentCheckpoints} />
       </main>
 
-      {/* Filtros (apenas para visitantes) */}
-      <section className="filters" style={{ marginBottom: "16px", display: "flex", gap: "12px", alignItems: "center" }}>
-        <div>
-          <label style={{ display: "block", fontWeight: "bold", marginBottom: "4px" }}>Período</label>
-          <select
-            value={selectedDateRange}
-            onChange={(e) => setSelectedDateRange(e.target.value)}
-            style={{ padding: "6px 8px", borderRadius: "8px", border: "1px solid #ccc" }}
-          >
-            <option value="7">Últimos 7 dias</option>
-            <option value="30">Últimos 30 dias</option>
-            <option value="90">Últimos 90 dias</option>
-          </select>
-        </div>
-      </section>
-
-      <section className="grid grid-2" style={{ marginBottom: "24px" }}>
-        <ChartContainer title={getChartTitle()}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={visitorsSeries}>
-              <XAxis dataKey="date" />
-              <YAxis allowDecimals={false} />
-              <Tooltip />
-              <Line type="monotone" dataKey="value" stroke="#3B82F6" strokeWidth={2} dot={{ r: 3 }} />
-            </LineChart>
-          </ResponsiveContainer>
+      {/* charts grid: visitors + pavilion pie */}
+      <section className="grid grid-2" style={{ marginBottom: 20 }}>
+        <ChartContainer title={`Visitantes - últimos ${visitorsDaysRange} dias`}>
+          <LineVisitors data={visitorsSeries.map(s => ({ day: s.date, value: s.value }))} />
         </ChartContainer>
 
-        <ChartContainer title="Checkpoints por Pavilhão">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie dataKey="value" data={pavilionPie} nameKey="name" outerRadius={80} label>
-                {pavilionPie.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Legend
-                verticalAlign="bottom"
-                align="center"
-                wrapperStyle={{
-                  paddingTop: 20,
-                  position: "relative",
-                  bottom: 0,
-                  overflow: "hidden",
-                  whiteSpace: "nowrap",
-                  textOverflow: "ellipsis",
-                  maxWidth: "90%",
-                }}
-              />
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+        <ChartContainer title={`Checkpoints por Pavilhão (7 dias)`}>
+          <PiePavilions data={pavilionPie} />
         </ChartContainer>
       </section>
 
-      <section>
-        <h3 style={{ marginBottom: "12px" }}>Status do Sistema</h3>
-        <div className="grid grid-3">
-          <div className="card">
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <div>Conexão com Banco</div>
-              <div style={{ color: "green" }}>Online</div>
-            </div>
-            <small>Supabase</small>
-          </div>
+      {/* additional charts: gender, top pavilions, avg stay */}
+      <section className="grid grid-3" style={{ marginBottom: 20 }}>
+        <ChartContainer title="Distribuição por Gênero (period)">
+          <PieGender data={genderPie} />
+        </ChartContainer>
 
-          <div className="card">
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <div>Dispositivo NFC</div>
-              <div style={{ color: "green" }}>Disponível (mock)</div>
-            </div>
-            <small>Web-only mock</small>
-          </div>
+        <ChartContainer title="Top 5 Pavilhões">
+          <BarTopPavilions data={topPavilions} />
+        </ChartContainer>
 
-          <div className="card">
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <div>Última atualização</div>
-              <div>{lastUpdated?.toLocaleTimeString()}</div>
-            </div>
-            <small>Atualize para obter dados recentes</small>
+        <ChartContainer title={`Tempo médio de permanência (média ${avgStay.samples} amostras)`}>
+          {/* convert avg into single-point line for display */}
+          <LineAvgStay data={[{ period: `${avgStayDays}d`, value: avgStay.avgMinutes }]} />
+          <div style={{ marginTop: 8, fontSize: 13, color: '#666' }}>
+            Média: {avgStay.avgMinutes} minutos ({avgStay.samples} amostras)
           </div>
-        </div>
+        </ChartContainer>
       </section>
     </div>
-  );
+  )
 }
