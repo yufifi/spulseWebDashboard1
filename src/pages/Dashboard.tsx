@@ -25,6 +25,7 @@ export default function Dashboard({ user, onLogout }) {
     currentPavilion: null,
     recentCheckpoints: 0,
     admin: false,
+    dbOnline: false,
   });
   const [visitorsSeries, setVisitorsSeries] = useState<any[]>([]);
   const [pavilionPie, setPavilionPie] = useState<any[]>([]);
@@ -65,6 +66,13 @@ export default function Dashboard({ user, onLogout }) {
       recentCheckpoints: recentCp,
       admin: isAdmin,
     });
+
+    try {
+      const { data: test, error } = await supabase.from("visitor_checkpoints").select("*").limit(1);
+      setStats(prev => ({ ...prev, dbOnline: !error }));
+    } catch {
+      setStats(prev => ({ ...prev, dbOnline: false }));
+    }
 
     const series = visitors7.dates?.map((d: string, i: number) => ({ date: d, value: visitors7.counts[i] })) || [];
     setVisitorsSeries(series);
@@ -253,44 +261,37 @@ export default function Dashboard({ user, onLogout }) {
       </section>
 
       {/* System Status */}
-      <section className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Status do Sistema</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="border border-gray-200 rounded-lg p-4">
-            <div className="flex justify-between items-center mb-1">
-              <div className="text-sm font-medium text-gray-700">Conexão com Banco</div>
-              <div className="text-green-600 font-semibold">Online</div>
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        {/* Conexão com Banco */}
+        <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 h-30 flex flex-col justify-between">
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 mb-2">Conexão com Database: Supabase</h3>
+            <div className={`${stats.dbOnline ? "text-green-600" : "text-red-600"} font-semibold text-2xl`}>
+              {stats.dbOnline ? "Online" : "Offline"}
             </div>
-            <small className="text-gray-500">Supabase</small>
           </div>
+        </div>
 
-          <div className="border border-gray-200 rounded-lg p-4">
-            <div className="flex justify-between items-center mb-1">
-              <div className="text-sm font-medium text-gray-700">Dispositivo NFC</div>
-              <div className="text-green-600 font-semibold">Disponível (mock)</div>
-            </div>
-            <small className="text-gray-500">Web-only mock</small>
+        {/* Última atualização */}
+        <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 h-30 flex flex-col justify-between">
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 mb-2">Última atualização</h3>
+            <div className="text-gray-900 text-2xl">{lastUpdated?.toLocaleTimeString()}</div>
           </div>
+          <small className="text-gray-500 mt-4">Atualize para obter dados recentes</small>
+        </div>
 
-          <div className="border border-gray-200 rounded-lg p-4">
-            <div className="flex justify-between items-center mb-1">
-              <div className="text-sm font-medium text-gray-700">Última atualização</div>
-              <div className="text-gray-900">{lastUpdated?.toLocaleTimeString()}</div>
-            </div>
-            <small className="text-gray-500">Atualize para obter dados recentes</small>
+        {/* Bem-vindo e Logout */}
+        <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 h-30 flex flex-col justify-between">
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 mb-2">Bem-vindo, {user?.email}</h3>
           </div>
-
-          <div className="border border-gray-200 rounded-lg p-4 flex flex-col justify-between">
-            <div className="flex justify-between items-center mb-3">
-              <span className="text-sm font-medium text-gray-700">Bem-vindo, {user?.email}</span>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
-            >
-              Sair
-            </button>
-          </div>
+          <button
+            onClick={handleLogout}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+          >
+            Sair
+          </button>
         </div>
       </section>
     </div>
