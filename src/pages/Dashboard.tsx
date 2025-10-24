@@ -2,11 +2,11 @@ import React, { useEffect, useState } from "react";
 import {
   fetchVisitorsStats,
   fetchVisitorsLast7Days,
-  fetchCheckpointsByPavilion,
   fetchUserPavilion,
   checkIfUserIsAdmin,
   fetchRecentCheckpoints,
 } from "../services/api";
+import { supabase } from "../services/supabase";
 
 import Card from "../components/Card";
 import ChartContainer from "../components/ChartContainer";
@@ -50,10 +50,9 @@ export default function Dashboard({ user, onLogout }) {
     const email = localStorage.getItem("currentUser");
     setUserEmail(email);
 
-    const [visitorStats, visitors7, pavilionStats, userPav, isAdmin, recentCp] = await Promise.all([
+    const [visitorStats, visitors7, userPav, isAdmin, recentCp] = await Promise.all([
       fetchVisitorsStats(),
       fetchVisitorsLast7Days(selectedDateRange),
-      fetchCheckpointsByPavilion(),
       fetchUserPavilion(email),
       checkIfUserIsAdmin(email),
       fetchRecentCheckpoints(),
@@ -70,10 +69,30 @@ export default function Dashboard({ user, onLogout }) {
     const series = visitors7.dates?.map((d: string, i: number) => ({ date: d, value: visitors7.counts[i] })) || [];
     setVisitorsSeries(series);
 
-    setPavilionPie(pavilionStats.map((p: any, idx: number) => ({
-      ...p,
-      color: `hsl(${(idx * 73) % 360} 65% 55%)`
-    })));
+    // Busca checkpoints agrupados por pavilhão
+    const { data: checkpoints, error } = await supabase
+      .from("visitor_checkpoints")
+      .select("pavilion_id, pavilion")
+      .order("pavilion_id");
+
+    if (!error && checkpoints) {
+      // Agrupa e conta
+      const counts: Record<string, number> = {};
+      checkpoints.forEach((item: any) => {
+        const name = item.pavilion || "Desconhecido";
+        counts[name] = (counts[name] || 0) + 1;
+      });
+
+      // Mapeia para formato compatível com Recharts
+      const colors = ["#8884d8", "#82ca9d", "#ffc658", "#ff8042", "#8dd1e1"];
+      const formatted = Object.entries(counts).map(([name, value], i) => ({
+        name,
+        value,
+        color: colors[i % colors.length]
+      }));
+
+  setPavilionPie(formatted);
+}
 
     setLastUpdated(new Date());
     setLoading(false);
@@ -105,14 +124,14 @@ export default function Dashboard({ user, onLogout }) {
             <div className="text-xl font-bold text-gray-900">Dashboard do Controlador</div>
             <div className="text-gray-600 mt-1">{userEmail ?? "—"}</div>
           </div>
-          
+
           <div className="flex flex-col sm:flex-row gap-3">
             {stats.currentPavilion && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 text-blue-800">
                 Pavilhão atual: {stats.currentPavilion}
               </div>
             )}
-            <button 
+            <button
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors duration-200 font-medium"
               onClick={loadInitial}
             >
@@ -185,12 +204,12 @@ export default function Dashboard({ user, onLogout }) {
                 <XAxis dataKey="date" />
                 <YAxis allowDecimals={false} />
                 <Tooltip />
-                <Line 
-                  type="monotone" 
-                  dataKey="value" 
-                  stroke="#3B82F6" 
-                  strokeWidth={2} 
-                  dot={{ r: 3 }} 
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  stroke="#3B82F6"
+                  strokeWidth={2}
+                  dot={{ r: 3 }}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -202,11 +221,11 @@ export default function Dashboard({ user, onLogout }) {
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie 
-                  dataKey="value" 
-                  data={pavilionPie} 
-                  nameKey="name" 
-                  outerRadius={80} 
+                <Pie
+                  dataKey="value"
+                  data={pavilionPie}
+                  nameKey="name"
+                  outerRadius={80}
                   label
                 >
                   {pavilionPie.map((entry, index) => (
@@ -265,8 +284,8 @@ export default function Dashboard({ user, onLogout }) {
             <div className="flex justify-between items-center mb-3">
               <span className="text-sm font-medium text-gray-700">Bem-vindo, {user?.email}</span>
             </div>
-            <button 
-              onClick={handleLogout} 
+            <button
+              onClick={handleLogout}
               className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
             >
               Sair
